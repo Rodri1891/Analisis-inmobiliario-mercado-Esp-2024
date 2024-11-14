@@ -6,7 +6,7 @@ from scipy.stats import zscore
 import numpy as np
 from PIL import Image
 
-# Configuración general de Streamlit - debe ser la primera instrucción
+# Configuración general de Streamlit
 st.set_page_config(page_title="Proyecto Inmobiliario", page_icon=":house:", layout="centered")
 
 # CSS 
@@ -22,7 +22,7 @@ st.markdown("""
         background-color: #00264d; /* Azul oscuro */
     }
 
-    /* Títulos y etiquetas en la barra lateral con fondo claro */
+    /* Títulos y etiquetas en la barra lateral */
     section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] div[data-baseweb="slider"] > div:first-child {
         color: #ffffff !important; /* Texto blanco */
         background-color: #B0C4DE !important; /* Fondo azul claro */
@@ -36,13 +36,13 @@ st.markdown("""
         margin-top: 10px !important; /* Espacio adicional superior */
         text-align: center !important; /* Centrar el slider */
         margin-left: auto !important; /* Centrar el slider automáticamente */
-        margin-right: auto !important; /* Centrar el slider automáticamente */
+        margin-right: auto !important; 
     }
 
     /* Slider en la vista principal */
     div[data-baseweb="slider"] {
-        margin-left: 40px !important; /* Espacio a la izquierda aumentado */
-        margin-right: 40px !important; /* Espacio a la derecha aumentado */
+        margin-left: 40px !important; /* Espacio a la izquierda */
+        margin-right: 40px !important; /* Espacio a la derecha */
     }
 
     /* Títulos principales */
@@ -74,7 +74,7 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* Remover espacio en blanco adicional alrededor de los componentes */
+    /* Quitar espacio en blanco adicional alrededor de los componentes */
     .main .block-container {
         padding: 0 !important;
     }
@@ -89,12 +89,12 @@ st.markdown("""
         color: #ffffff !important; /* Texto blanco */
     }
 
-    /* Cambiar el color del slider de rango de precios a blanco */
+    /* Color del slider de rango de precios blanco */
     .stSlider > div > div > div:first-child {
         background-color: #ffffff !important;
     }
 
-    /* Cambiar el color del control deslizante a blanco */
+    /* Color del control deslizante blanco */
     .stSlider > div > div > div:nth-child(2) {
         background-color: #ffffff !important;
     }
@@ -109,7 +109,7 @@ ruta_archivo = '../propiedades_limpio.csv'
 def load_data(nrows=None):
     return pd.read_csv(ruta_archivo, sep=';', nrows=nrows)
 
-# Leer el archivo CSV (cargando una muestra inicial para mejorar el rendimiento)
+# Leer el archivo CSV 
 df = load_data()
 df.columns = df.columns.str.strip().str.lower()
 
@@ -183,9 +183,9 @@ provincia_centroides = {
 menu = ["Inicio", "Vista Usuarios", "Vista Clientes", "Acerca de"]
 choice = st.sidebar.selectbox("Navegación", menu)
 
-# Lógica de control de flujo para cada sección
+# Control de flujo para cada sección
 if choice == "Inicio":
-    st.header("Bienvenido al Análisis de Datos Inmobiliarios")
+    st.header("  Bienvenido al Análisis de Datos Inmobiliarios")
     st.write("""
     ¡Bienvenidos al proyecto final de Rodrigo, David y Raquel!
     
@@ -199,7 +199,7 @@ if choice == "Inicio":
     """)
 
 elif choice == "Vista Usuarios":
-    st.header("Visualización de Datos y Comparador de Inmuebles")
+    st.header("  Visualización de Datos y Comparador de Inmuebles")
 
     # Filtros de datos
     provincia = st.sidebar.selectbox("Selecciona una provincia:", df['provincia'].unique())
@@ -222,7 +222,7 @@ elif choice == "Vista Usuarios":
         min_value=precio_min,
         max_value=precio_max,
         value=(precio_min, precio_max),
-        key='slider_precio'  # Clave única para evitar conflicto de widgets
+        key='slider_precio' 
     )
 
     # Aplicar el rango de precio seleccionado al DataFrame filtrado
@@ -249,12 +249,12 @@ elif choice == "Vista Usuarios":
         projection='mercator'
     )
 
-    # Actualizar la configuración del mapa para ajustar el zoom dinámicamente
+    # Configuración del mapa para ajustar el zoom dinámicamente
     fig_map.update_layout(
         title_font_size=20,
         geo=dict(
-            center={'lat': 40, 'lon': -3},  # Centrar en la Península Ibérica
-            projection_scale=7,  # Zoom ajustado para la Península Ibérica
+            center={'lat': 40, 'lon': -3},  
+            projection_scale=12, 
             showland=True,
             landcolor='rgb(243, 243, 243)',
         ),
@@ -264,20 +264,20 @@ elif choice == "Vista Usuarios":
     if provincia in ['Las Palmas', 'Santa Cruz De Tenerife']:
         fig_map.update_layout(
             geo=dict(
-                center={'lat': 35, 'lon': -10},  # Centrar en las Islas Canarias
-                projection_scale=7,  # Zoom ajustado para las Islas Canarias
+                center={'lat': 35, 'lon': -10},  
+                projection_scale=12, 
             )
         )
 
-    fig_map.update_layout(mapbox_style="carto-positron")  # Cambiar el estilo del mapa a Carto Positron
+    fig_map.update_layout(mapbox_style="carto-positron")  # Estilo del mapa Carto Positron
     st.plotly_chart(fig_map, use_container_width=True)
 
-    # Añadir una breve explicación del mapa
+    # Breve explicación del mapa
     st.write("""
     **Descripción del Mapa:** Este mapa muestra las propiedades disponibles en la provincia seleccionada. Cada marcador representa la ubicación aproximada de una provincia con propiedades disponibles, mostrando el número total de propiedades y el precio medio.
     """)
 
-    # Mostrar tabla de propiedades filtradas
+    # Tabla de propiedades filtradas
     st.write("### Inmuebles filtrados")
     st.dataframe(df_filtrado[['título', 'precio', 'habitaciones', 'superficie útil', 'baños', 'enlace']])
     st.write("""
@@ -287,7 +287,7 @@ elif choice == "Vista Usuarios":
     # Comparador de inmuebles
     st.write("### Comparador de inmuebles")
 
-    # Crear una lista de opciones con título y id para evitar duplicados
+    # Lista de opciones con título y id para evitar duplicados
     opciones_inmuebles = df_filtrado.apply(lambda x: f"{x['título']}", axis=1).tolist()
     id_map = dict(zip(opciones_inmuebles, df_filtrado['id']))
 
@@ -322,11 +322,11 @@ elif choice == "Vista Usuarios":
             xaxis_title="Precio (€)",
             yaxis_title="Propiedades",
             legend_title_text="Tipo de Datos",
-            plot_bgcolor='rgba(0,0,0,0)',  # Fondo transparente
-            paper_bgcolor='rgba(0,0,0,0)'  # Fondo transparente
+            plot_bgcolor='rgba(0,0,0,0)',  
+            paper_bgcolor='rgba(0,0,0,0)' 
         )
-        fig.update_xaxes(color='#00264d')  # Ajuste del color de texto del eje X
-        fig.update_yaxes(color='#00264d')  # Ajuste del color de texto del eje Y
+        fig.update_xaxes(color='#00264d')  
+        fig.update_yaxes(color='#00264d')  
         st.plotly_chart(fig, use_container_width=True)
         st.write("""
         **Descripción del Gráfico:** Este histograma muestra la distribución de los precios de las propiedades disponibles en la zona seleccionada. Los datos atípicos (outliers) se resaltan en rojo para identificar valores fuera del rango típico.
@@ -334,11 +334,11 @@ elif choice == "Vista Usuarios":
     else:
         st.write("No hay datos disponibles para los filtros seleccionados.")
 
-elif choice == "Vista Clientes": 
-    st.title("Análisis y Esquema de Base de Datos para Clientes")
+elif choice == "Vista Clientes":
+    st.title("  Análisis y Esquema de Base de Datos para Clientes")
     st.subheader("Representación de la base de datos y dashboard interactivo de Power BI")
 
-    # Insertar iframe del dashboard de Power BI
+    # Iframe del dashboard de Power BI
     st.markdown("""
     <iframe title="Dashboards alquileres (5)" width="600" height="373.5" src="https://app.powerbi.com/view?r=eyJrIjoiOWEyYWJjOTQtZmRkNy00OWU5LTgxODUtZDg4MGQ5OGRlOTMyIiwidCI6IjVlNzNkZTM1LWU4MjUtNGVkNS1iZTIyLTg4NTYzNTI3MDkxZSIsImMiOjl9" frameborder="0" allowFullScreen="true"></iframe>
     """, unsafe_allow_html=True)
@@ -353,21 +353,19 @@ elif choice == "Vista Clientes":
     if tipo_transaccion == 'Alquiler':
         df_filtrado = df_filtrado[df_filtrado['precio'] >= 300]
 
-    # Crear el encabezado de Análisis de Precio
+    # Encabezado de Análisis de Precio
     st.header("Análisis de Precio por Metro Cuadrado")
-    # Slider para seleccionar el rango de provincias
-    num_provincias = st.slider(
-        "Selecciona el rango de provincias para visualizar",
-        min_value=1,
-        max_value=len(df_filtrado['provincia'].unique()),
-        value=len(df_filtrado['provincia'].unique()),
-        key='slider_provincias_clientes'
+    # Multiselect para seleccionar provincias
+    provincias_seleccionadas = st.multiselect(
+        "Selecciona las provincias para visualizar",
+        options=df_filtrado['provincia'].unique(),
+        default=df_filtrado['provincia'].unique(),
+        key='multiselect_provincias_clientes'
     )
 
-    # Seleccionar las provincias a mostrar en el gráfico de cajas
-    provincias_seleccionadas = df_filtrado['provincia'].unique()[:num_provincias]
+    # Filtrar las provincias seleccionadas en el gráfico de cajas
     df_provincias_filtrado = df_filtrado[df_filtrado['provincia'].isin(provincias_seleccionadas)]
-        # Excluir valores de "precio por m²" iguales a 0
+    # Excluir valores de "precio por m²" iguales a 0
     df_provincias_filtrado = df_provincias_filtrado[df_provincias_filtrado['precio por m²'] > 0]
     
     # Calcular la media del "precio por m²" y establecer el valor mínimo
@@ -377,7 +375,7 @@ elif choice == "Vista Clientes":
         df_provincias_filtrado = df_provincias_filtrado[df_provincias_filtrado['precio por m²'] >= min_precio_m2]
 
     # Configurar el rango del eje Y basado en el tipo de transacción
-    y_axis_range = [0, 200] if tipo_transaccion == 'Alquiler' else [0, 10000]
+    y_axis_range = [0, 200] if tipo_transaccion == 'Alquiler' else [3000, 10000]
 
     # Crear el gráfico de cajas si hay datos disponibles
     if not df_provincias_filtrado.empty:
@@ -412,7 +410,7 @@ elif choice == "Vista Clientes":
             title="Correlación entre Precio y Superficie Útil",
             labels={"superficie útil": "Superficie Útil (m²)", "precio": "Precio (€)"}
         )
-        fig_corr_superficie.update_xaxes(range=[0, 1000])  # Ajuste de rango para eje X de superficie útil
+        fig_corr_superficie.update_xaxes(range=[0, 1000])  
         st.plotly_chart(fig_corr_superficie, use_container_width=True)
         st.write("""
         **Descripción del Gráfico:** Este gráfico de dispersión muestra la correlación entre el precio y la superficie útil de las propiedades en la provincia seleccionada. Se pueden observar tendencias y patrones que indican cómo el precio cambia con respecto al tamaño de la propiedad.
@@ -435,7 +433,8 @@ elif choice == "Vista Clientes":
         st.write("No hay datos disponibles para el análisis de correlación.")
     
 elif choice == "Acerca de":
-    st.header("Sobre el Proyecto")
+    st.header("  Sobre el Proyecto")
+
     st.write("""
     Este proyecto de análisis inmobiliario ha sido desarrollado para proporcionar visualizaciones interactivas de datos
     de propiedades en venta y alquiler en España. Utiliza tecnologías de análisis geográfico y visualización para permitir
@@ -443,14 +442,13 @@ elif choice == "Acerca de":
 
     **Integrantes del proyecto**:
     - Rodrigo González - LinkedIn: https://www.linkedin.com/in/rodrigo-gonzalez-ferreira
-      - Correo: rodri.gonzalez.ferreira@gmail.com
+     
     - David López Patiño - LinkedIn: https://www.linkedin.com/in/david-lopez-pati%C3%B1o-29aa211a5
-      - Correo: davidlopezpatino86@gmail.com
+    
     - Raquel Bastida - LinkedIn: https://www.linkedin.com/in/raquel-bastida
-      - Correo: raquelbb.rbb@gmail.com
     """)
 
-    # Mostrar fotos tipo carnet de cada integrante
+    # Fotos
     st.write("**Fotos de los integrantes**")
     col1, col2, col3 = st.columns(3)
 
@@ -464,14 +462,10 @@ elif choice == "Acerca de":
         img_raquel = Image.open("Raquel.jpeg").resize((150, 200))
         st.image(img_raquel, caption="Raquel Bastida", use_column_width=False)
 
-# Mostrar la imagen en la parte inferior de la barra lateral
-from PIL import Image
-
 # Cargar la imagen desde la ruta y mostrarla en la parte inferior de la barra lateral
 ruta_imagen = 'imagen_proyecto.png'
 imagen = Image.open(ruta_imagen)
 
 with st.sidebar:
-    st.markdown("<div style='flex-grow: 1;'></div>", unsafe_allow_html=True)  # Para empujar la imagen hacia abajo
+    st.markdown("<div style='flex-grow: 1;'></div>", unsafe_allow_html=True) 
     st.image(imagen, use_column_width=True)
-
