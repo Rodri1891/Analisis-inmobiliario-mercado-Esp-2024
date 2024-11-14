@@ -1,230 +1,477 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from scipy.stats import zscore
+import numpy as np
 from PIL import Image
-import pandas as pd
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from datetime import datetime
-import plotly.express as px
-import modulos.frankfurter_funcs as ffunc
-from modulos.currencies import currencies
-from modulos.weather_func import *
-from streamlit_folium import st_folium
-from modulos.page_config_dict import *
 
+# Configuración general de Streamlit - debe ser la primera instrucción
+st.set_page_config(page_title="Proyecto Inmobiliario", page_icon=":house:", layout="centered")
 
-st.write('Hola mundo')
+# CSS 
+st.markdown("""
+    <style>
+    /* Fondo general */
+    .stApp {
+        background-color: #ffffff; /* Blanco */
+    }
 
-name = 'Daniel'
+    /* Barra lateral */
+    section[data-testid="stSidebar"] {
+        background-color: #00264d; /* Azul oscuro */
+    }
 
-st.text(f'Hola soy {name}') 
+    /* Títulos y etiquetas en la barra lateral con fondo claro */
+    section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] div[data-baseweb="slider"] > div:first-child {
+        color: #ffffff !important; /* Texto blanco */
+        background-color: #B0C4DE !important; /* Fondo azul claro */
+        padding: 5px 8px; /* Espacio alrededor del texto */
+        border-radius: 5px; /* Bordes redondeados */
+        font-family: 'Roboto', sans-serif;
+    }
 
-# Multiple Selection
-librerias = ["numpy", "pandas", "random", "datetime", "sklearn"]
-libreria = st.multiselect(label = "Librerias",
-                        options = librerias, 
-                        default = librerias,
-                        placeholder = "Placeholder",                        
-)                        
+    /* Ajuste del margen superior del slider */
+    section[data-testid="stSidebar"] div[data-baseweb="slider"] {
+        margin-top: 10px !important; /* Espacio adicional superior */
+        text-align: center !important; /* Centrar el slider */
+        margin-left: auto !important; /* Centrar el slider automáticamente */
+        margin-right: auto !important; /* Centrar el slider automáticamente */
+    }
 
-st.write(libreria)
+    /* Slider en la vista principal */
+    div[data-baseweb="slider"] {
+        margin-left: 40px !important; /* Espacio a la izquierda aumentado */
+        margin-right: 40px !important; /* Espacio a la derecha aumentado */
+    }
 
- # Slider Int, Float, Date
-age = st.slider(label     = "Age",
-                     min_value = 1,
-                     max_value = 100,
-                     value     = 50,
-                     step      = 2)
+    /* Títulos principales */
+    h1, h2, h3 {
+        color: #00264d; /* Azul oscuro */
+        font-family: 'Roboto', sans-serif;
+    }
 
+    /* Texto del cuerpo */
+    p, label {
+        color: #00264d; /* Azul oscuro */
+        font-family: 'Roboto', sans-serif;
+        font-size: 1.1em;
+    }
+
+    /* Gráficos de Plotly */
+    .plotly-chart .title {
+        color: #00264d;
+        font-family: 'Roboto', sans-serif;
+    }
+
+    /* Transparencia para gráficos */
+    .plotly-graph-wrapper .plot-container .svg-container {
+        background-color: rgba(255, 255, 255, 0); /* Fondo transparente */
+    }
+
+    /* Ajuste del ancho de la tabla */
+    .dataframe {
+        width: 100% !important;
+    }
+
+    /* Remover espacio en blanco adicional alrededor de los componentes */
+    .main .block-container {
+        padding: 0 !important;
+    }
+
+    /* Mapas y gráficos ocupando el ancho completo */
+    .st-folium {
+        width: 100% !important;
+    }
+
+    /* Slider de rango de precios */
+    .css-1n76uvr .stSlider > div {
+        color: #ffffff !important; /* Texto blanco */
+    }
+
+    /* Cambiar el color del slider de rango de precios a blanco */
+    .stSlider > div > div > div:first-child {
+        background-color: #ffffff !important;
+    }
+
+    /* Cambiar el color del control deslizante a blanco */
+    .stSlider > div > div > div:nth-child(2) {
+        background-color: #ffffff !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Ruta del archivo CSV
+ruta_archivo = '../propiedades_limpio.csv'
+
+# Función para cargar los datos con caché
+@st.cache_data
+def load_data(nrows=None):
+    return pd.read_csv(ruta_archivo, sep=';', nrows=nrows)
+
+# Leer el archivo CSV (cargando una muestra inicial para mejorar el rendimiento)
+df = load_data()
+df.columns = df.columns.str.strip().str.lower()
+
+# Capitalizar nombres de provincias y tipo transacción
+df['provincia'] = df['provincia'].str.title()
+df['venta/alquiler'] = df['venta/alquiler'].str.capitalize()
+
+# Crear la columna 'precio por m²' si no existe
+if 'precio por m²' not in df.columns:
+    df['precio por m²'] = df['precio'] / df['superficie útil']
+    df['precio por m²'] = df['precio por m²'].fillna(0)
+
+# Diccionario con coordenadas aproximadas (centroides) de cada provincia en España
+provincia_centroides = {
+    'a coruña': (43.3623, -8.4115),
+    'alava araba': (42.8464, -2.6715),
+    'albacete': (38.9943, -1.8585),
+    'alicante': (38.3452, -0.4810),
+    'almeria': (36.8340, -2.4637),
+    'asturias': (43.3619, -5.8494),
+    'avila': (40.6565, -4.6818),
+    'badajoz': (38.8794, -6.9706),
+    'barcelona': (41.3851, 2.1734),
+    'burgos': (42.3439, -3.6969),
+    'caceres': (39.4753, -6.3723),
+    'cadiz': (36.5164, -6.2994),
+    'cantabria': (43.1828, -3.9878),
+    'castellon castello': (39.9864, -0.0513),
+    'ceuta': (35.8894, -5.3198),
+    'ciudad real': (38.9857, -3.9291),
+    'cordoba': (37.8882, -4.7794),
+    'cuenca': (40.0704, -2.1374),
+    'girona': (41.9794, 2.8214),
+    'granada': (37.1773, -3.5986),
+    'guadalajara': (40.6332, -3.1669),
+    'guipuzcoa gipuzkoa': (43.3120, -1.9784),
+    'huelva': (37.2614, -6.9447),
+    'huesca': (42.1401, -0.4089),
+    'islas baleares illes balears': (39.6953, 3.0176),
+    'jaen': (37.7796, -3.7849),
+    'la rioja': (42.2871, -2.5396),
+    'las palmas': (28.1235, -15.4363),
+    'leon': (42.5987, -5.5671),
+    'lleida': (41.6176, 0.6200),
+    'lugo': (43.0125, -7.5559),
+    'madrid': (40.4168, -3.7038),
+    'malaga': (36.7213, -4.4214),
+    'melilla': (35.2923, -2.9381),
+    'murcia': (37.9834, -1.1299),
+    'navarra nafarroa': (42.6954, -1.6761),
+    'ourense': (42.3358, -7.8639),
+    'pais vasco frances iparralde': (43.3569, -1.7650),
+    'palencia': (42.0095, -4.5286),
+    'pontevedra': (42.4299, -8.6444),
+    'salamanca': (40.9701, -5.6635),
+    'santa cruz de tenerife': (28.2916, -16.6291),
+    'segovia': (40.9429, -4.1088),
+    'sevilla': (37.3886, -5.9823),
+    'soria': (41.7636, -2.4649),
+    'tarragona': (41.1189, 1.2453),
+    'teruel': (40.3440, -1.1065),
+    'toledo': (39.8628, -4.0273),
+    'valencia': (39.4699, -0.3763),
+    'valladolid': (41.6523, -4.7245),
+    'vizcaya bizkaia': (43.2630, -2.9350),
+    'zamora': (41.5036, -5.7440),
+    'zaragoza': (41.6488, -0.8891)
+}
+
+# Menú de navegación
+menu = ["Inicio", "Vista Usuarios", "Vista Clientes", "Acerca de"]
+choice = st.sidebar.selectbox("Navegación", menu)
+
+# Lógica de control de flujo para cada sección
+if choice == "Inicio":
+    st.header("Bienvenido al Análisis de Datos Inmobiliarios")
+    st.write("""
+    ¡Bienvenidos al proyecto final de Rodrigo, David y Raquel!
     
-age = st.slider(label     = "Age",
-                     min_value = 1.0,
-                     max_value = 100.0,
-                     value     = 50.0,
-                     step      = 0.01)
-
-# Select Slider
-colores = ["Amarillo", "Azul", "Rojo", "Morado", "Verde"]
-color = st.select_slider(label  = "Choose Color",
-                         options = colores,
-                         value = "Morado")
-
-## 03
-
-image = Image.open("sources/curiosidades-del-oso-panda-1280x720x80xX.jpg")
-
-st.image(image            = image,
-          caption          = "pandas2",
-          use_column_width = False)
-
-st.image(image           = image,
-         caption          = "pandas",
-         use_column_width = True)
-
-st.image(image = "data:image/jpeg;base64,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
-fig, ax = plt.subplots(nrows = 1, ncols = 2, figsize 5iPu03mq7vD0yjtMTr2gAE5v0bRNzf0I/Cr/jP+kc1yHWtTw7g2CuKVbEZWFxlBj3khcjBTvrIga96dlrzH+zVu32rdsMttQy7MS2ilGjZsxA8QGPKKPT+ohxXh037l26SlvNpze4REqg5+LHQeehEbjdwALbVbdtZyplVonclmEsx0k/ICBUX9pMS0ZnVoAALJbJgaASVmmvAr+IxJuAXVTs7Zf9WhzRHdEAd4zoOdNN3+lQ47if2hHkqj7hTrBY7F3MN3brAi73nJyqiZNSx5D+gEkxSf+3sT+0+Cr+FV4rit+4uR7jFZnLMCesDSaciae4m/evYa4LdwtZtEdq7sczt9U5T7qk6KvUa8oSYbjN9LT2EdltuwZ1HNhsZ36fCh7eMdbb2lMJcKl9NTlnKCempMdfKqVSqGNPhWxeOw/YL30wqtcA7oIQ+9rux2j1qjhGCv2AMd2c27LjVhKl/qqRvGo1/nSe1dZZysRIgwSJHQ9RTfgQN9hhXvi1aeSxYnIGUEhiJidInxoRUuGcdPb3WNi0zYgMkZB3Gc+8gGxB2pXe4PfW6bJtP2gOqZTm2nby1o/hPCs3b3RdQDDDMJbKX1IXJ11A+Iqu37R4pbxxAvN2mveJk6jKdDptSh761Hsu9m7eQpZCPhrBW5czE57jRbBjloX+Fbf+6/PjWO9gsPlw1y8fevXInqlsf+Tt8K16H9GfOm0kyPlnG+HKt68964QWzNbAGYuw0E/ZEgjXpVfsdYLY20RshLnyAMfMijfanEtbxF0OgdHXuZhojFQCyHkR021rS/+nfCuwtNjLg791YsoeVvWXPny8BPOi3EyW0Nxp8zNccydT1IAJgKOR8tfiZDwXEblpUdbGLsXcwHaPbi0QxAQMdyDIBB+/WnGP4cGcuDvoQdiJJ9DqdaUYxCrBGN0n6qkHL4Np3TE7z61PUaStthuLtctq22Yar0I0YehBFZTj2OH0vCIPf7Qt5LlcH/AJhRn01cPYLuYy5mPmzEx8TWf4HcOKvti2TIiLlSd2OpZjSv8gn/AK0uOYsywYysCduQiJieZ2I8ZofEt+fwq8pMHnz+Z/AUJfNaSICuOUb/ACjeaV4sgQT5nrA5D4fOmN1+fTb8/nelmIYHMJAPZvAO50ggeME+k0qFuDxKNqjZVYHu9kbhEELObxjl4UNibv6MjP77x+ogQJAO2utA8P43bt21QveBCkQpAQEsSNNzpVNrjqme0e+3eJWHAgbj1n
-fig, ax = plt.subplots(nrows = 1, ncols = 2, figsize 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",
-         caption = "image from url2",
-         use_column_width = True)
-
-# Text Input
-name = st.text_input(label = "Name", 
-                      max_chars = 20,
-                      placeholder = "Tu nombre")
-
-
-password = st.text_input(label = "Contraseña",
-                          placeholder = "Tu contraseña",
-                          max_chars = 20,
-                          type = "password")
-
-st.title(name)
-st.title(password)
-
-# Text Area
-texto = st.text_area(label       = "Enter Text", 
-                      height      = 150, 
-                      max_chars   = 2000,
-                      placeholder = "Review")
-st.write(texto)
-
-# Input Numbers
-number = st.number_input(label = "Enter Number",
-                          min_value = -256,
-                          max_value = 255,
-                          value = 0,
-                          step = 10)
-
-# Fecha
-fecha = st.date_input(label = "Tutoria")
-
-# # Time Input
-tiempo = st.time_input(label = "Hora")
-
-# # Color Picker
-color = st.color_picker("Select Color")
-st.write(f"Your color: {color}")
-
-
-## 06
-st.title("Plots")
-
-with st.expander(label = "DataFrame - Tips", expanded = False):
-        df = sns.load_dataset(name = "tips")
-        st.dataframe(df)
-
-plt.scatter(x = df["total_bill"], y = df["tip"])
-st.pyplot()
-
-##subplot
-fig, ax = plt.subplots()
-ax.scatter(x = df["total_bill"], y = df["tip"])
-plt.title("Total Bill vs Tip")
-plt.xlabel("Total Bill")
-plt.ylabel("Tip")
-st.pyplot(fig)
-
-##seaborn
-fig = plt.figure()
-sns.countplot(x = df["sex"])
-import plotly.express as px
-import modulos.frankfurter_funcs as ffunc
-st.pyplot(fig)
-
-##scaterplot
-fig = plt.figure()
-sns.scatterplot(x = df["total_bill"], y = df["tip"],
-                    hue = df["smoker"], alpha = 0.5)
-st.pyplot(fig)
-
-## boxplot
-fig = plt.figure()
-sns.boxplot(x = df["day"], y = df["tip"], hue = df["smoker"])
-st.pyplot(fig)
-
-## subplots con seaborn
-fig, ax = plt.subplots(nrows = 2, ncols = 2)
-sns.histplot(x = df["total_bill"], kde = True, ax = ax[0, 0]);
-sns.countplot(x = df["size"], ax = ax[0, 1]);
-sns.scatterplot(x = df["tip"], y = df["size"], hue = df["smoker"], ax = ax[1, 0]);
-sns.boxplot(x = df["time"], y = df["total_bill"], ax = ax[1, 1]);
-st.pyplot(fig)
-
-
-## PLOTLY 
-
-st.set_page_config(**PAGE_CONFIG)
-
-
-st.title("Streamlit App. & Plotly.")
-with st.expander(label = "DataFrame - Accidentes Bicicletas 2021", expanded = False):
-     df = pd.read_csv(filepath_or_buffer = "sources/AccidentesBicicletas_2021.csv", sep = ";")
-     st.dataframe(df)
-
-
-with st.expander(label = "DataFrame - Accidentes Bicicletas 2021 GroupBy Distrito", expanded = False):
-     df1 = df.groupby(by = "distrito", as_index = False)["num_expediente"].count()
-     st.dataframe(data = df1, use_container_width = True)
-
-
-fig_pie = px.pie(data_frame = df1,
-                      names      = "distrito",
-                      values     = "num_expediente",
-                      title      = "Num. Accidentes por Distrito")
-st.plotly_chart(figure_or_data = fig_pie, use_container_width = True)
-
-fig_bar = px.bar(data_frame = df1,
-                 x          = "distrito",
-                 y          = "num_expediente",
-                 title      = "Num. Accidentes por Distrito")
-st.plotly_chart(figure_or_data = fig_bar, use_container_width = True)
-
-# Streamlit Plots
+    Este proyecto es el resultado del trabajo en equipo en el Bootcamp de Data Analyst de la escuela Hack a Boss, donde nos propusimos analizar los datos inmobiliarios de "https://pisos.com". A través de técnicas avanzadas de extracción de datos (web scraping con Selenium) y el procesamiento de estos datos en Python, hemos desarrollado un sistema para estudiar las tendencias del mercado inmobiliario en España. La información extraída se estructuró y almacenó en una base de datos SQL, y posteriormente fue visualizada y analizada mediante dashboards interactivos en Power BI.
     
-with st.expander(label = "DataFrame - Taxis", expanded = False):
-     df2 = sns.load_dataset("taxis")
-     df2 = df2.dropna().iloc[:50, :]
-     df2 = df2.sort_values("pickup")
-st.dataframe(df2)
-
-# # Bar Chart
-st.bar_chart(df2[["total", "fare"]])
-
-# # Line Chart
-columns_list = df2._get_numeric_data().columns
-columns_choices = st.multiselect(label = "Choose Columns", options = columns_list, default = columns_list[-1])
-df2_filter = df2[columns_choices]
-st.line_chart(df2_filter)
-
- # # Area Chart
-st.area_chart(df2_filter)
-
-st.title("Frankfurter API App.")
-st.markdown("""Simple script that calls the `Frankfurter API` and shows the EUR's evolution compared
-                   to another currency over a selected year.""")
-
-currency = st.selectbox(label = "Select Currency", options = currencies)
-
-year = st.slider(label     = "Select Year",
-                 min_value = 2015,
-                 max_value = datetime.now().year,
-                 value     = datetime.now().year - 1)
+    Todo esto está integrado en esta aplicación que han abierto, hecha con Streamlit, para ofrecerles una experiencia completa y dinámica de análisis de datos inmobiliarios. Aquí podrán explorar mapas interactivos, filtros de propiedades, comparativas y estadísticas clave sobre el mercado.
     
-currency = currency.split(" - ")[0]
+    Durante el análisis, nos enfocamos en aspectos como la distribución de precios por metro cuadrado, el impacto de las características de los inmuebles (número de habitaciones, superficie, etc.) en su valor, así como la visualización geoespacial del mercado. Cada parte del proyecto se realizó con el objetivo de crear una herramienta útil y visualmente atractiva para cualquier persona interesada en el sector inmobiliario.
+    
+    ¡Esperamos que disfruten explorando estos datos tanto como nosotros disfrutamos desarrollando el proyecto!
+    """)
 
-df = ffunc.currency_evolution(currency = currency, year = year)
-df.rename(mapper = {"currency" : currency}, axis = 1, inplace = True)
+elif choice == "Vista Usuarios":
+    st.header("Visualización de Datos y Comparador de Inmuebles")
 
-with st.expander(label = "Frankfurter DataFrame", expanded = False):
-        st.dataframe(df)
+    # Filtros de datos
+    provincia = st.sidebar.selectbox("Selecciona una provincia:", df['provincia'].unique())
+    tipo_transaccion = st.sidebar.selectbox("Selecciona una transacción:", df['venta/alquiler'].unique())
+    
+    # Filtrar el DataFrame según la provincia y el tipo de transacción
+    df_filtrado = df[(df['provincia'] == provincia) & (df['venta/alquiler'] == tipo_transaccion)]
 
-df["month"] = df["date"].apply(lambda x : x.strftime("%B"))
+    # Excluir alquileres menores a 300 €
+    if tipo_transaccion == 'Alquiler':
+        df_filtrado = df_filtrado[df_filtrado['precio'] >= 300]
 
-# Line Chart
-line_fig = px.line(data_frame = df,
-                       x          = "date",
-                       y          = currency,
-                       title      = f"{currency} - EUR Relationship")
-  
+    # Obtener el mínimo y máximo de precio después del filtrado
+    precio_min = int(df_filtrado['precio'].min()) if not df_filtrado.empty else 0
+    precio_max = int(df_filtrado['precio'].max()) if not df_filtrado.empty else 1
 
+    # Slider de rango de precio dinámico
+    precio_min_slider, precio_max_slider = st.sidebar.slider(
+        "Rango de precio (€):",
+        min_value=precio_min,
+        max_value=precio_max,
+        value=(precio_min, precio_max),
+        key='slider_precio'  # Clave única para evitar conflicto de widgets
+    )
+
+    # Aplicar el rango de precio seleccionado al DataFrame filtrado
+    df_filtrado = df_filtrado[(df_filtrado['precio'] >= precio_min_slider) & (df_filtrado['precio'] <= precio_max_slider)]
+
+    # Mapa de propiedades por provincia con Plotly
+    st.write("### Mapa de propiedades por provincia")
+
+    # Crear el mapa con Plotly
+    df_map = df_filtrado[['provincia', 'precio']].groupby('provincia').agg({'precio': ['count', 'mean']}).reset_index()
+    df_map.columns = ['provincia', 'propiedades', 'precio_medio']
+    df_map['lat'] = df_map['provincia'].apply(lambda x: provincia_centroides[x.lower()][0] if x.lower() in provincia_centroides else None)
+    df_map['lon'] = df_map['provincia'].apply(lambda x: provincia_centroides[x.lower()][1] if x.lower() in provincia_centroides else None)
+
+    fig_map = px.scatter_geo(
+        df_map,
+        lat='lat',
+        lon='lon',
+        text='provincia',
+        size='propiedades',
+        hover_name='provincia',
+        hover_data={'precio_medio': ':.2f', 'lat': False, 'lon': False},
+        title="Mapa de Propiedades por Provincia en España",
+        projection='mercator'
+    )
+
+    # Actualizar la configuración del mapa para ajustar el zoom dinámicamente
+    fig_map.update_layout(
+        title_font_size=20,
+        geo=dict(
+            center={'lat': 40, 'lon': -3},  # Centrar en la Península Ibérica
+            projection_scale=7,  # Zoom ajustado para la Península Ibérica
+            showland=True,
+            landcolor='rgb(243, 243, 243)',
+        ),
+        margin={'r': 0, 't': 50, 'l': 0, 'b': 0}
+    )
+
+    if provincia in ['Las Palmas', 'Santa Cruz De Tenerife']:
+        fig_map.update_layout(
+            geo=dict(
+                center={'lat': 35, 'lon': -10},  # Centrar en las Islas Canarias
+                projection_scale=7,  # Zoom ajustado para las Islas Canarias
+            )
+        )
+
+    fig_map.update_layout(mapbox_style="carto-positron")  # Cambiar el estilo del mapa a Carto Positron
+    st.plotly_chart(fig_map, use_container_width=True)
+
+    # Añadir una breve explicación del mapa
+    st.write("""
+    **Descripción del Mapa:** Este mapa muestra las propiedades disponibles en la provincia seleccionada. Cada marcador representa la ubicación aproximada de una provincia con propiedades disponibles, mostrando el número total de propiedades y el precio medio.
+    """)
+
+    # Mostrar tabla de propiedades filtradas
+    st.write("### Inmuebles filtrados")
+    st.dataframe(df_filtrado[['título', 'precio', 'habitaciones', 'superficie útil', 'baños', 'enlace']])
+    st.write("""
+    **Descripción de la Tabla:** La tabla muestra los inmuebles disponibles en la provincia seleccionada, con detalles sobre el precio, número de habitaciones, superficie útil, y más.
+    """)
+
+    # Comparador de inmuebles
+    st.write("### Comparador de inmuebles")
+
+    # Crear una lista de opciones con título y id para evitar duplicados
+    opciones_inmuebles = df_filtrado.apply(lambda x: f"{x['título']}", axis=1).tolist()
+    id_map = dict(zip(opciones_inmuebles, df_filtrado['id']))
+
+    # Seleccionar inmuebles basados en título (ID: id)
+    inmueble_1 = st.selectbox("Selecciona el primer inmueble:", opciones_inmuebles, key='inmueble_1')
+    inmueble_2 = st.selectbox("Selecciona el segundo inmueble:", opciones_inmuebles, key='inmueble_2')
+    
+    # Filtrar el comparador usando los id seleccionados
+    comparador = df[df['id'].isin([id_map[inmueble_1], id_map[inmueble_2]])]
+
+    # Mostrar comparación de características ocupando todo el ancho
+    if not comparador.empty:
+        st.write("### Comparativa de características")
+        st.dataframe(comparador[['título', 'precio', 'habitaciones', 'superficie útil', 'baños', 'provincia']].T, width=1500)
+        st.write("""
+        **Descripción de la Comparativa:** Esta sección permite comparar dos propiedades seleccionadas, mostrando sus características clave como el precio, número de habitaciones, superficie útil, y más.
+        """)
+
+    # Visualización de la distribución de precios con outliers en rojo
+    if not df_filtrado.empty:
+        st.write("### Distribución de Precios en la Zona Seleccionada")
+        
+        # Calcular el z-score para identificar outliers
+        df_filtrado['z_score'] = zscore(df_filtrado['precio'])
+        df_filtrado['tipo_dato'] = np.where(df_filtrado['z_score'].abs() > 3, 'Datos Atípicos', 'Datos Normales')
+        
+        # Crear el gráfico
+        fig = px.histogram(df_filtrado, x="precio", nbins=40, title="Distribución de Precios",
+                           color='tipo_dato', color_discrete_map={'Datos Atípicos': 'red', 'Datos Normales': 'blue'})
+        fig.update_layout(
+            bargap=0.1,
+            xaxis_title="Precio (€)",
+            yaxis_title="Propiedades",
+            legend_title_text="Tipo de Datos",
+            plot_bgcolor='rgba(0,0,0,0)',  # Fondo transparente
+            paper_bgcolor='rgba(0,0,0,0)'  # Fondo transparente
+        )
+        fig.update_xaxes(color='#00264d')  # Ajuste del color de texto del eje X
+        fig.update_yaxes(color='#00264d')  # Ajuste del color de texto del eje Y
+        st.plotly_chart(fig, use_container_width=True)
+        st.write("""
+        **Descripción del Gráfico:** Este histograma muestra la distribución de los precios de las propiedades disponibles en la zona seleccionada. Los datos atípicos (outliers) se resaltan en rojo para identificar valores fuera del rango típico.
+        """)
+    else:
+        st.write("No hay datos disponibles para los filtros seleccionados.")
+
+elif choice == "Vista Clientes": 
+    st.title("Análisis y Esquema de Base de Datos para Clientes")
+    st.subheader("Representación de la base de datos y dashboard interactivo de Power BI")
+
+    # Insertar iframe del dashboard de Power BI
+    st.markdown("""
+    <iframe title="Dashboards alquileres (5)" width="600" height="373.5" src="https://app.powerbi.com/view?r=eyJrIjoiOWEyYWJjOTQtZmRkNy00OWU5LTgxODUtZDg4MGQ5OGRlOTMyIiwidCI6IjVlNzNkZTM1LWU4MjUtNGVkNS1iZTIyLTg4NTYzNTI3MDkxZSIsImMiOjl9" frameborder="0" allowFullScreen="true"></iframe>
+    """, unsafe_allow_html=True)
+
+    # Filtros de datos
+    tipo_transaccion = st.sidebar.selectbox("Selecciona una transacción:", df['venta/alquiler'].unique(), key='selectbox_transaccion_clientes')
+
+    # Filtrar DataFrame según los filtros seleccionados
+    df_filtrado = df[df['venta/alquiler'] == tipo_transaccion]
+    
+    # Filtrar valores de alquiler por encima de 300 €
+    if tipo_transaccion == 'Alquiler':
+        df_filtrado = df_filtrado[df_filtrado['precio'] >= 300]
+
+    # Crear el encabezado de Análisis de Precio
+    st.header("Análisis de Precio por Metro Cuadrado")
+    # Slider para seleccionar el rango de provincias
+    num_provincias = st.slider(
+        "Selecciona el rango de provincias para visualizar",
+        min_value=1,
+        max_value=len(df_filtrado['provincia'].unique()),
+        value=len(df_filtrado['provincia'].unique()),
+        key='slider_provincias_clientes'
+    )
+
+    # Seleccionar las provincias a mostrar en el gráfico de cajas
+    provincias_seleccionadas = df_filtrado['provincia'].unique()[:num_provincias]
+    df_provincias_filtrado = df_filtrado[df_filtrado['provincia'].isin(provincias_seleccionadas)]
+        # Excluir valores de "precio por m²" iguales a 0
+    df_provincias_filtrado = df_provincias_filtrado[df_provincias_filtrado['precio por m²'] > 0]
+    
+    # Calcular la media del "precio por m²" y establecer el valor mínimo
+    if not df_provincias_filtrado.empty:
+        media_precio_m2 = df_provincias_filtrado['precio por m²'].mean()
+        min_precio_m2 = media_precio_m2 / 2
+        df_provincias_filtrado = df_provincias_filtrado[df_provincias_filtrado['precio por m²'] >= min_precio_m2]
+
+    # Configurar el rango del eje Y basado en el tipo de transacción
+    y_axis_range = [0, 200] if tipo_transaccion == 'Alquiler' else [0, 10000]
+
+    # Crear el gráfico de cajas si hay datos disponibles
+    if not df_provincias_filtrado.empty:
+        fig_box = px.box(
+            df_provincias_filtrado,
+            x="provincia",
+            y="precio por m²",
+            title="",
+            labels={"precio por m²": "Precio por m² (€)"},
+            width=1000,
+            height=500
+        )
+        fig_box.update_yaxes(range=y_axis_range, title_text="Precio por m² (€)")
+        fig_box.update_xaxes(tickangle=45)
+        fig_box.update_traces(
+            hovertemplate="<b>%{x}</b><br>Mediana: %{y:.2f}"
+        )
+        st.plotly_chart(fig_box, use_container_width=True)
+        st.write("""
+        **Descripción del Gráfico:** Este gráfico de cajas muestra la distribución de los precios por metro cuadrado en cada provincia seleccionada, permitiendo identificar rangos de precios comunes y valores atípicos.
+        """)
+    else:
+        st.write("No hay datos disponibles para los filtros seleccionados.")
+        # Análisis de correlación entre precio y otras variables
+    if not df_filtrado.empty:
+        st.header("Análisis de Correlación entre Variables")
+        provincia_corr = st.sidebar.selectbox("Selecciona una provincia para el análisis de correlación:", df_filtrado['provincia'].unique(), key='provincia_corr_clientes')
+        df_corr_filtrado = df_filtrado[df_filtrado['provincia'] == provincia_corr]
+
+        fig_corr_superficie = px.scatter(
+            df_corr_filtrado, x="superficie útil", y="precio",
+            title="Correlación entre Precio y Superficie Útil",
+            labels={"superficie útil": "Superficie Útil (m²)", "precio": "Precio (€)"}
+        )
+        fig_corr_superficie.update_xaxes(range=[0, 1000])  # Ajuste de rango para eje X de superficie útil
+        st.plotly_chart(fig_corr_superficie, use_container_width=True)
+        st.write("""
+        **Descripción del Gráfico:** Este gráfico de dispersión muestra la correlación entre el precio y la superficie útil de las propiedades en la provincia seleccionada. Se pueden observar tendencias y patrones que indican cómo el precio cambia con respecto al tamaño de la propiedad.
+        """)
+
+        # Agrupar por número de habitaciones y calcular el precio promedio
+        df_grouped = df_corr_filtrado.groupby('habitaciones')['precio'].mean().reset_index()
+
+        # Crear el gráfico de barras
+        fig_bar = px.bar(
+            df_grouped, x="habitaciones", y="precio",
+            title="Precio Promedio por Número de Habitaciones",
+            labels={"habitaciones": "Número de Habitaciones", "precio": "Precio Promedio (€)"},
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+        st.write("""
+        **Descripción del Gráfico:** Este gráfico de barras muestra el precio promedio de las propiedades en función del número de habitaciones, lo que permite identificar cómo varía el precio según la cantidad de habitaciones en la provincia seleccionada.
+        """)
+    else:
+        st.write("No hay datos disponibles para el análisis de correlación.")
+    
+elif choice == "Acerca de":
+    st.header("Sobre el Proyecto")
+    st.write("""
+    Este proyecto de análisis inmobiliario ha sido desarrollado para proporcionar visualizaciones interactivas de datos
+    de propiedades en venta y alquiler en España. Utiliza tecnologías de análisis geográfico y visualización para permitir
+    un mejor entendimiento del mercado inmobiliario.
+
+    **Integrantes del proyecto**:
+    - Rodrigo González - LinkedIn: https://www.linkedin.com/in/rodrigo-gonzalez-ferreira
+      - Correo: rodri.gonzalez.ferreira@gmail.com
+    - David López Patiño - LinkedIn: https://www.linkedin.com/in/david-lopez-pati%C3%B1o-29aa211a5
+      - Correo: davidlopezpatino86@gmail.com
+    - Raquel Bastida - LinkedIn: https://www.linkedin.com/in/raquel-bastida
+      - Correo: raquelbb.rbb@gmail.com
+    """)
+
+    # Mostrar fotos tipo carnet de cada integrante
+    st.write("**Fotos de los integrantes**")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        img_rodrigo = Image.open("Rodrigo.png").resize((150, 200))
+        st.image(img_rodrigo, caption="Rodrigo González", use_column_width=False)
+    with col2:
+        img_david = Image.open("David.jpeg").resize((150, 200))
+        st.image(img_david, caption="David López Patiño", use_column_width=False)
+    with col3:
+        img_raquel = Image.open("Raquel.jpeg").resize((150, 200))
+        st.image(img_raquel, caption="Raquel Bastida", use_column_width=False)
+
+# Mostrar la imagen en la parte inferior de la barra lateral
+from PIL import Image
+
+# Cargar la imagen desde la ruta y mostrarla en la parte inferior de la barra lateral
+ruta_imagen = 'imagen_proyecto.png'
+imagen = Image.open(ruta_imagen)
+
+with st.sidebar:
+    st.markdown("<div style='flex-grow: 1;'></div>", unsafe_allow_html=True)  # Para empujar la imagen hacia abajo
+    st.image(imagen, use_column_width=True)
 
